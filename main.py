@@ -1,5 +1,4 @@
-from utils import Student, create_paper
+from utils import Student, create_paper, get_axis_detector
 
 if __name__ == "__main__":
-    student = Student("98765432")
-    create_paper(student, "88")
+    get_axis_detector("fe18_fest_alevel_answer_sheet_page-0001.jpg")

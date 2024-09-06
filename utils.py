@@ -5,7 +5,6 @@ from reportlab.lib.pagesizes import A4
 
 PAPER_WIDTH = 538
 BIN_THRESHOLD = 230
-AXIS_DETECTOR_BOUNDARY = [[(0, 0), (30, 760)], [(0, 730), (540,760)]]
 WHITE_PERCENTAGE_THRESHOLD = 0.4
 
 class Student:
@@ -27,6 +26,8 @@ def create_paper(student: Student, exam_id: str):
     for idx, digit in enumerate(student.id):
         c.circle(461+14*idx, 781-(11.25)*int(digit), 5, fill=1)
         c.drawString(459+14*idx, 790, digit)
+    for idx, digit in enumerate(student.id):
+        c.drawString(275+14*idx, 765, digit)
     c.save()
 
     with open(circle_pdf_path, "rb") as circle_pdf:
@@ -37,30 +38,15 @@ def create_paper(student: Student, exam_id: str):
     with open("annotated.pdf", "wb") as f:
         writer.write(f)
 
+AXIS_DETECTOR_BOUNDARY = [[(0, 0), (30, 760)], [(0, 730), (540,760)]]
+
 def is_detector(contour):
     for boundary in AXIS_DETECTOR_BOUNDARY:
         (x1, y1), (x2, y2) = boundary
-        cx, cy, ch, cw = cv2.boundingRect(contour)
-        if x1 <= cx <= x2 and y1 <= cy <= y2:
+        cx, cy, cw, ch = cv2.boundingRect(contour)
+        if x1 <= cx and cx + cw <= x2 and y1 <= cy and cy + ch <= y2:
             return True
     return False
-
-def get_crop_section(x1, x2, y1, y2, offset, x_detectors, y_detectors, img):
-    distance_between_detectors = x_detectors[1][0] - (x_detectors[0][0] + x_detectors[0][2])
-    upper_left = (x_detectors[x1][0] - distance_between_detectors//2 * offset[3], y_detectors[y1][1] - distance_between_detectors//2 * offset[0])
-    lower_right = (x_detectors[x2][0] + x_detectors[x2][2] + distance_between_detectors//2 * offset[1], y_detectors[y2][1] + y_detectors[y2][3] + distance_between_detectors//2 * offset[2])
-    crop_section = img[upper_left[1]:lower_right[1], upper_left[0]:lower_right[0]]
-
-    cv2.rectangle(img, upper_left, lower_right, (0, 0, 255), 1)
-    return crop_section
-
-def read_exam_id(img):
-    exam_id = "--"
-    # devide the image into 10 by 2 grid using its width and height
-    h, w = img.shape
-    grid_h, grid_w = h // 2, w // 10
-    # check each grid
-    return exam_id
 
 def get_axis_detector(path: str):
     # pre-processing
@@ -81,38 +67,11 @@ def get_axis_detector(path: str):
 
     # draw the detector contours
     for idx, (x, y, w, h) in enumerate(x_detectors):
-        cv2.rectangle(binary_img, (x, y), (x + w, y + h), (0 + int(idx/len(detectors) * 255), 255 - int(idx/len(detectors) * 255), 0), 2)
+        cv2.rectangle(img, (x, y), (x + w, y + h), (0 + int(idx/len(detectors) * 255), 255 - int(idx/len(detectors) * 255), 0), 1)
     for idx, (x, y, w, h) in enumerate(y_detectors):
-        cv2.rectangle(binary_img, (x, y), (x + w, y + h), (0 + int(idx/len(detectors) * 255), 255 - int(idx/len(detectors) * 255), 0), 2)
-
-    crop_sections = []
-    # exam_id
-    offset = [False, True, True, False]
-    meta = {"section_type": "exam_id"}
-    crop_sections.append((get_crop_section(31, 32, 2, 11, offset, x_detectors, y_detectors, binary_img), meta))
-    # id
-    offset = [False, True, True, True]
-    meta = {"section_type": "id", "digits": 8}
-    crop_sections.append((get_crop_section(34, len(x_detectors) - 1, 2, 11, offset, x_detectors, y_detectors, binary_img), meta))
-    # cancel
-    offset = [True, True, True, True]
-    meta = {"section_type": "cancel"}
-    crop_sections.append((get_crop_section(4, 4, 10, 10, offset, x_detectors, y_detectors, binary_img), meta))
-    # choice
-    meta = {"section_type": "choice", "choices": 5, "items": 5}
-    for i in range(0, 5):
-        offset = [True, True, True, True]
-        crop_sections.append((get_crop_section(5 + i*7, 9 + i*7, 34, 38, offset, x_detectors, y_detectors, binary_img), meta))
-    # fill
-    meta = {"section_type": "fill", "items": 5}
-    for i in range(0, 5):
-        offset = [True, True, True, True]
-        crop_sections.append((get_crop_section(2 + i*8, 8 + i*8, 45, 54, offset, x_detectors, y_detectors, binary_img), meta))
-
-    section, meta = crop_sections[0]
-    exam_id = read_exam_id(section)
-
-    # for binary_img, meta in crop_sections:
-    #     cv2.imshow(meta["section_type"], binary_img)
-    #     cv2.waitKey(0)
-    #     cv2.destroyAllWindows()
+        cv2.rectangle(img, (x, y), (x + w, y + h), (0 + int(idx/len(detectors) * 255), 255 - int(idx/len(detectors) * 255), 0), 1)
+    # draw a line between the first and last y-detector
+    cv2.line(img, (y_detectors[0][0], y_detectors[0][1]), (y_detectors[-1][0], y_detectors[-1][1]), (0, 0, 255), 1)
+    cv2.imshow("Detectors", img)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
